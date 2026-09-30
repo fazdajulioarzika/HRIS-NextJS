@@ -10,7 +10,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import { LeaveApprovalTabs } from "@/components/leave/leave-approval-tabs";
+import { OvertimeApprovalTabs } from "@/components/overtime/overtime-approval-tabs";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +23,7 @@ function getName(rel: any, path: string[]): string {
   return cur ?? "-";
 }
 
-export default async function LeaveApprovalsPage() {
+export default async function OvertimeApprovalsPage() {
   const supabase = await createClient();
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) redirect("/login");
@@ -33,24 +33,24 @@ export default async function LeaveApprovalsPage() {
     .select("role")
     .eq("id", auth.user.id)
     .single();
-  if (profile?.role !== "manager" && profile?.role !== "hr") redirect("/leave");
+  if (profile?.role !== "manager" && profile?.role !== "hr")
+    redirect("/overtime");
 
   const pendingFilter =
     profile.role === "hr" ? ["pending", "manager_approved"] : ["pending"];
 
-  const baseSelect = `id, start_date, end_date, total_days, reason, status, rejection_reason,
-     employees!leave_requests_employee_id_fkey ( profiles ( full_name ) ),
-     leave_types ( name )`;
+  const baseSelect = `id, date, start_time, end_time, total_hours, reason, status, rejection_reason,
+     employees!overtime_requests_employee_id_fkey ( profiles ( full_name ) )`;
 
   const [{ data: pendingRequests }, { data: historyRequests }] =
     await Promise.all([
       supabase
-        .from("leave_requests")
+        .from("overtime_requests")
         .select(baseSelect)
         .in("status", pendingFilter)
         .order("created_at", { ascending: true }),
       supabase
-        .from("leave_requests")
+        .from("overtime_requests")
         .select(baseSelect)
         .in("status", ["approved", "rejected", "cancelled"])
         .order("created_at", { ascending: false })
@@ -61,10 +61,10 @@ export default async function LeaveApprovalsPage() {
     return (data ?? []).map((r: any) => ({
       id: r.id,
       full_name: getName(r.employees, ["profiles", "full_name"]),
-      type_name: getName(r.leave_types, ["name"]),
-      start_date: r.start_date,
-      end_date: r.end_date,
-      total_days: r.total_days,
+      date: r.date,
+      start_time: r.start_time,
+      end_time: r.end_time,
+      total_hours: r.total_hours,
       reason: r.reason,
       status: r.status,
       rejection_reason: r.rejection_reason,
@@ -76,7 +76,7 @@ export default async function LeaveApprovalsPage() {
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>
-            <BreadcrumbLink render={<Link href="/leave">Leave</Link>} />
+            <BreadcrumbLink render={<Link href="/overtime">Overtime</Link>} />
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
@@ -86,15 +86,15 @@ export default async function LeaveApprovalsPage() {
       </Breadcrumb>
 
       <div>
-        <h1 className="text-3xl font-bold">Leave Approvals</h1>
+        <h1 className="text-3xl font-bold">Overtime Approvals</h1>
         <p className="text-muted-foreground">
           {profile.role === "hr"
             ? "Final approval untuk semua pengajuan."
-            : "Review pengajuan cuti tim Anda."}
+            : "Review pengajuan lembur tim Anda."}
         </p>
       </div>
 
-      <LeaveApprovalTabs
+      <OvertimeApprovalTabs
         pendingRows={mapRows(pendingRequests)}
         historyRows={mapRows(historyRequests)}
         role={profile.role}

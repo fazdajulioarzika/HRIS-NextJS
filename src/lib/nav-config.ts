@@ -48,7 +48,7 @@ export const navMainConfig: NavMainConfigItem[] = [
     title: "Overtime",
     url: "/overtime",
     icon: Timer,
-    roles: ["hr", "employee"],
+    roles: ["hr", "employee", "manager"],
   },
   {
     title: "Overtime Tim",

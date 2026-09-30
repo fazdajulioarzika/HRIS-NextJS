@@ -5,7 +5,6 @@ import { ClipboardCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { LeaveRequestDialog } from "@/components/leave/leave-request-dialog";
 import { LeaveHistory } from "@/components/leave/leave-history";
 
@@ -18,6 +17,11 @@ const statusLabel: Record<string, string> = {
   rejected: "Rejected",
   cancelled: "Cancelled",
 };
+
+function getTypeName(lt: any) {
+  if (!lt) return "-";
+  return Array.isArray(lt) ? lt[0]?.name ?? "-" : lt.name ?? "-";
+}
 
 export default async function LeavePage() {
   const supabase = await createClient();
@@ -64,11 +68,6 @@ export default async function LeavePage() {
     )
     .eq("employee_id", employee.id)
     .order("created_at", { ascending: false });
-
-  function getTypeName(lt: any) {
-    if (!lt) return "-";
-    return Array.isArray(lt) ? lt[0]?.name ?? "-" : lt.name ?? "-";
-  }
 
   return (
     <div className="space-y-6">

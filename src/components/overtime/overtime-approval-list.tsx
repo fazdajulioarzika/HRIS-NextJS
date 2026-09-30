@@ -24,29 +24,32 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-import { reviewLeaveAsManager, reviewLeaveAsHR } from "@/lib/actions/leave";
+import {
+  reviewOvertimeAsManager,
+  reviewOvertimeAsHR,
+} from "@/lib/actions/overtime";
 
-interface LeaveRow {
+interface OvertimeRow {
   id: string;
   full_name: string;
-  type_name: string;
-  start_date: string;
-  end_date: string;
-  total_days: number;
+  date: string;
+  start_time: string;
+  end_time: string;
+  total_hours: number;
   reason: string;
   status: string;
 }
 
-export function LeaveApprovalList({
+export function OvertimeApprovalList({
   rows,
   role,
 }: {
-  rows: LeaveRow[];
+  rows: OvertimeRow[];
   role: string;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [rejectTarget, setRejectTarget] = useState<LeaveRow | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<OvertimeRow | null>(null);
   const [rejectReason, setRejectReason] = useState("");
 
   const [search, setSearch] = useState("");
@@ -58,7 +61,6 @@ export function LeaveApprovalList({
       ? rows.filter(
           (r) =>
             r.full_name.toLowerCase().includes(query) ||
-            r.type_name.toLowerCase().includes(query) ||
             r.reason.toLowerCase().includes(query)
         )
       : rows;
@@ -75,7 +77,7 @@ export function LeaveApprovalList({
 
   function handleApprove(id: string) {
     startTransition(async () => {
-      const fn = role === "hr" ? reviewLeaveAsHR : reviewLeaveAsManager;
+      const fn = role === "hr" ? reviewOvertimeAsHR : reviewOvertimeAsManager;
       await fn(id, "approve");
       router.refresh();
     });
@@ -84,7 +86,7 @@ export function LeaveApprovalList({
   function handleReject() {
     if (!rejectTarget) return;
     startTransition(async () => {
-      const fn = role === "hr" ? reviewLeaveAsHR : reviewLeaveAsManager;
+      const fn = role === "hr" ? reviewOvertimeAsHR : reviewOvertimeAsManager;
       await fn(rejectTarget.id, "reject", rejectReason);
       setRejectTarget(null);
       setRejectReason("");
@@ -97,7 +99,7 @@ export function LeaveApprovalList({
       <div className="relative w-full max-w-sm">
         <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
         <Input
-          placeholder="Search employee, type, reason..."
+          placeholder="Search employee or reason..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-8"
@@ -118,9 +120,9 @@ export function LeaveApprovalList({
                   <ArrowUpDown className="size-3.5" />
                 </button>
               </TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Dates</TableHead>
-              <TableHead>Days</TableHead>
+              <TableHead>Date</TableHead>
+              <TableHead>Time</TableHead>
+              <TableHead>Hours</TableHead>
               <TableHead>Reason</TableHead>
               {role === "hr" && <TableHead>Status</TableHead>}
               <TableHead className="w-24" />
@@ -140,12 +142,13 @@ export function LeaveApprovalList({
               filteredRows.map((row) => (
                 <TableRow key={row.id}>
                   <TableCell className="font-medium">{row.full_name}</TableCell>
-                  <TableCell>{row.type_name}</TableCell>
                   <TableCell>
-                    {new Date(row.start_date).toLocaleDateString("id-ID")} –{" "}
-                    {new Date(row.end_date).toLocaleDateString("id-ID")}
+                    {new Date(row.date).toLocaleDateString("id-ID")}
                   </TableCell>
-                  <TableCell>{row.total_days}</TableCell>
+                  <TableCell>
+                    {row.start_time.slice(0, 5)} - {row.end_time.slice(0, 5)}
+                  </TableCell>
+                  <TableCell>{row.total_hours}h</TableCell>
                   <TableCell className="max-w-xs truncate">
                     {row.reason}
                   </TableCell>
@@ -197,7 +200,7 @@ export function LeaveApprovalList({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Reject Leave Request</DialogTitle>
+            <DialogTitle>Reject Overtime Request</DialogTitle>
           </DialogHeader>
           <Textarea
             placeholder="Alasan penolakan (opsional)"
