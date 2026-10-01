@@ -1,8 +1,15 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowUpDown, Check, Search, X } from "lucide-react";
+import {
+  ArrowUpDown,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  X,
+} from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -40,6 +47,8 @@ interface OvertimeRow {
   status: string;
 }
 
+type SortBy = "name" | "date";
+
 export function OvertimeApprovalList({
   rows,
   role,
@@ -53,7 +62,12 @@ export function OvertimeApprovalList({
   const [rejectReason, setRejectReason] = useState("");
 
   const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState<SortBy>("date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+
+  useEffect(() => setPage(1), [search]);
 
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -66,13 +80,27 @@ export function OvertimeApprovalList({
       : rows;
 
     return [...base].sort((a, b) => {
-      const result = a.full_name.localeCompare(b.full_name);
+      const result =
+        sortBy === "name"
+          ? a.full_name.localeCompare(b.full_name)
+          : a.date.localeCompare(b.date);
       return sortDir === "asc" ? result : -result;
     });
-  }, [rows, search, sortDir]);
+  }, [rows, search, sortBy, sortDir]);
 
-  function toggleSort() {
-    setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+  const paginatedRows = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filteredRows.slice(start, start + pageSize);
+  }, [filteredRows, page]);
+
+  function toggleSort(column: SortBy) {
+    if (sortBy === column) {
+      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(column);
+      setSortDir("asc");
+    }
   }
 
   function handleApprove(id: string) {
@@ -113,14 +141,23 @@ export function OvertimeApprovalList({
               <TableHead>
                 <button
                   type="button"
-                  onClick={toggleSort}
+                  onClick={() => toggleSort("name")}
                   className="flex items-center gap-1 hover:text-foreground"
                 >
                   Employee
                   <ArrowUpDown className="size-3.5" />
                 </button>
               </TableHead>
-              <TableHead>Date</TableHead>
+              <TableHead>
+                <button
+                  type="button"
+                  onClick={() => toggleSort("date")}
+                  className="flex items-center gap-1 hover:text-foreground"
+                >
+                  Date
+                  <ArrowUpDown className="size-3.5" />
+                </button>
+              </TableHead>
               <TableHead>Time</TableHead>
               <TableHead>Hours</TableHead>
               <TableHead>Reason</TableHead>
@@ -129,7 +166,7 @@ export function OvertimeApprovalList({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredRows.length === 0 ? (
+            {paginatedRows.length === 0 ? (
               <TableRow>
                 <TableCell
                   colSpan={role === "hr" ? 7 : 6}
@@ -139,7 +176,7 @@ export function OvertimeApprovalList({
                 </TableCell>
               </TableRow>
             ) : (
-              filteredRows.map((row) => (
+              paginatedRows.map((row) => (
                 <TableRow key={row.id}>
                   <TableCell className="font-medium">{row.full_name}</TableCell>
                   <TableCell>
@@ -192,6 +229,30 @@ export function OvertimeApprovalList({
             )}
           </TableBody>
         </Table>
+      </div>
+
+      <div className="flex items-center justify-between px-2">
+        <p className="text-sm text-muted-foreground">
+          Page {page} of {totalPages}
+        </p>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page === 1}
+          >
+            <ChevronLeft className="size-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+          >
+            <ChevronRight className="size-4" />
+          </Button>
+        </div>
       </div>
 
       <Dialog

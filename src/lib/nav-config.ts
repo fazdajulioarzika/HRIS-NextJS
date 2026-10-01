@@ -39,22 +39,10 @@ export const navMainConfig: NavMainConfigItem[] = [
     roles: ["hr", "employee", "manager"],
   },
   {
-    title: "Leave Tim",
-    url: "/leave/team",
-    icon: CalendarDays,
-    roles: ["manager"],
-  },
-  {
     title: "Overtime",
     url: "/overtime",
     icon: Timer,
     roles: ["hr", "employee", "manager"],
-  },
-  {
-    title: "Overtime Tim",
-    url: "/overtime/team",
-    icon: Timer,
-    roles: ["manager"],
   },
   { title: "Payroll", url: "/payroll", icon: Wallet, roles: ["hr"] },
   { title: "Recruitment", url: "/recruitment", icon: Briefcase, roles: ["hr"] },

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { MyProfileForm } from "@/components/profile/my-profile-form";
+import { MyDocuments } from "@/components/profile/my-documents";
 
 export const dynamic = "force-dynamic";
 
@@ -25,9 +26,14 @@ export default async function MyProfilePage() {
     )
     .eq("profile_id", auth.user.id)
     .single();
+  const { data: documents } = await supabase
+    .from("employee_documents")
+    .select("id, document_type, file_name, file_path, uploaded_at")
+    .eq("employee_id", employee?.id ?? "")
+    .order("uploaded_at", { ascending: false });
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="max-w-full space-y-6">
       <div>
         <h1 className="text-2xl font-bold">My Profile</h1>
         <p className="text-muted-foreground">
@@ -36,6 +42,7 @@ export default async function MyProfilePage() {
       </div>
 
       <MyProfileForm profile={profile} employee={employee as any} />
+      <MyDocuments documents={documents ?? []} />
     </div>
   );
 }

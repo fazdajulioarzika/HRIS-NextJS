@@ -46,7 +46,7 @@ export default async function DashboardLayout({
 
         <SidebarInset>
           <header className="flex h-16 items-center gap-4 border-b px-4">
-            <SidebarTrigger />
+            <SidebarTrigger className="" />
 
             <div>
               <h1 className="font-semibold">

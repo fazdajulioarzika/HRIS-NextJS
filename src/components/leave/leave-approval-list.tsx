@@ -1,8 +1,15 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowUpDown, Check, Search, X } from "lucide-react";
+import {
+  ArrowUpDown,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  X,
+} from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,6 +44,8 @@ interface LeaveRow {
   status: string;
 }
 
+type SortBy = "name" | "date";
+
 export function LeaveApprovalList({
   rows,
   role,
@@ -50,7 +59,12 @@ export function LeaveApprovalList({
   const [rejectReason, setRejectReason] = useState("");
 
   const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState<SortBy>("date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+
+  useEffect(() => setPage(1), [search]);
 
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -64,13 +78,27 @@ export function LeaveApprovalList({
       : rows;
 
     return [...base].sort((a, b) => {
-      const result = a.full_name.localeCompare(b.full_name);
+      const result =
+        sortBy === "name"
+          ? a.full_name.localeCompare(b.full_name)
+          : a.start_date.localeCompare(b.start_date);
       return sortDir === "asc" ? result : -result;
     });
-  }, [rows, search, sortDir]);
+  }, [rows, search, sortBy, sortDir]);
 
-  function toggleSort() {
-    setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+  const paginatedRows = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filteredRows.slice(start, start + pageSize);
+  }, [filteredRows, page]);
+
+  function toggleSort(column: SortBy) {
+    if (sortBy === column) {
+      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(column);
+      setSortDir("asc");
+    }
   }
 
   function handleApprove(id: string) {
@@ -111,7 +139,7 @@ export function LeaveApprovalList({
               <TableHead>
                 <button
                   type="button"
-                  onClick={toggleSort}
+                  onClick={() => toggleSort("name")}
                   className="flex items-center gap-1 hover:text-foreground"
                 >
                   Employee
@@ -119,7 +147,16 @@ export function LeaveApprovalList({
                 </button>
               </TableHead>
               <TableHead>Type</TableHead>
-              <TableHead>Dates</TableHead>
+              <TableHead>
+                <button
+                  type="button"
+                  onClick={() => toggleSort("date")}
+                  className="flex items-center gap-1 hover:text-foreground"
+                >
+                  Dates
+                  <ArrowUpDown className="size-3.5" />
+                </button>
+              </TableHead>
               <TableHead>Days</TableHead>
               <TableHead>Reason</TableHead>
               {role === "hr" && <TableHead>Status</TableHead>}
@@ -127,7 +164,7 @@ export function LeaveApprovalList({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredRows.length === 0 ? (
+            {paginatedRows.length === 0 ? (
               <TableRow>
                 <TableCell
                   colSpan={role === "hr" ? 7 : 6}
@@ -137,7 +174,7 @@ export function LeaveApprovalList({
                 </TableCell>
               </TableRow>
             ) : (
-              filteredRows.map((row) => (
+              paginatedRows.map((row) => (
                 <TableRow key={row.id}>
                   <TableCell className="font-medium">{row.full_name}</TableCell>
                   <TableCell>{row.type_name}</TableCell>
@@ -189,6 +226,30 @@ export function LeaveApprovalList({
             )}
           </TableBody>
         </Table>
+      </div>
+
+      <div className="flex items-center justify-between px-2">
+        <p className="text-sm text-muted-foreground">
+          Page {page} of {totalPages}
+        </p>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page === 1}
+          >
+            <ChevronLeft className="size-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+          >
+            <ChevronRight className="size-4" />
+          </Button>
+        </div>
       </div>
 
       <Dialog
