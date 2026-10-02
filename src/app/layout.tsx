@@ -32,8 +32,11 @@ export const metadata: Metadata = {
   },
   description: "Human Resource Information System untuk PT ABC.",
 };
-
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html
       lang="en"
