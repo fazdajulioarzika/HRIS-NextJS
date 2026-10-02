@@ -53,15 +53,17 @@ export default async function AttendanceReportPage({
     .single();
   if (profile?.role !== "hr") redirect("/attendance");
 
-  const { data: employees } = await supabase
+  const { data: employees, error: employeesError } = await supabase
     .from("employees")
     .select(
       `id, employment_status,
-       profiles ( full_name ),
-       departments ( name ),
-       positions ( name )`
+     profiles ( full_name ),
+     departments ( name ),
+     positions ( name )`
     )
     .in("employment_status", ["active", "probation", "contract", "permanent"]);
+
+  console.log("employees count:", employees?.length, "error:", employeesError);
 
   const employeeRows = (employees ?? []).map((e: any) => ({
     id: e.id,
@@ -69,6 +71,8 @@ export default async function AttendanceReportPage({
     department: getDeptName(e.departments),
     position: getPosName(e.positions),
   }));
+
+  console.log("employeeRows count:", employeeRows.length);
 
   let dailyData: any = null;
   let monthlyData: any = null;
@@ -118,32 +122,28 @@ export default async function AttendanceReportPage({
     const selectedMonth = month ?? getCurrentMonthString();
     const { start, end } = getMonthRange(selectedMonth);
 
-    const { data: attendance } = await supabase
-      .from("attendance")
-      .select("employee_id, status, late_minutes, date")
-      .gte("date", start)
-      .lte("date", end);
+    const { data: summary, error: summaryError } = await supabase.rpc(
+      "get_monthly_attendance_summary",
+      { start_date: start, end_date: end }
+    );
 
-    const grouped = new Map<
-      string,
-      { present: number; late: number; totalLateMinutes: number }
-    >();
-    for (const a of attendance ?? []) {
-      const entry = grouped.get(a.employee_id) ?? {
-        present: 0,
-        late: 0,
-        totalLateMinutes: 0,
-      };
-      entry.present += 1;
-      if (a.status === "late") {
-        entry.late += 1;
-        entry.totalLateMinutes += a.late_minutes ?? 0;
-      }
-      grouped.set(a.employee_id, entry);
+    if (summaryError) {
+      console.error("summaryError:", summaryError);
     }
 
+    const summaryMap = new Map(
+      (summary ?? []).map((s: any) => [
+        s.employee_id,
+        {
+          present: Number(s.present_count),
+          late: Number(s.late_count),
+          totalLateMinutes: Number(s.total_late_minutes),
+        },
+      ])
+    );
+
     const rows = employeeRows.map((emp) => {
-      const stat = grouped.get(emp.id) ?? {
+      const stat = summaryMap.get(emp.id) ?? {
         present: 0,
         late: 0,
         totalLateMinutes: 0,

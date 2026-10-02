@@ -131,7 +131,9 @@ export async function reviewLeaveAsHR(
 
   const { data: leave } = await auth.supabase
     .from("leave_requests")
-    .select("status, employee_id, leave_type_id, total_days, start_date")
+    .select(
+      "status, employee_id, leave_type_id, total_days, start_date, end_date"
+    )
     .eq("id", id)
     .single();
 
@@ -152,10 +154,9 @@ export async function reviewLeaveAsHR(
 
   if (error) return { error: error.message };
 
-  // Kalau final approved, tambahkan ke used_days
   if (decision === "approve") {
+    // 1. Potong saldo cuti
     const year = new Date(leave.start_date).getFullYear();
-
     const { data: balance } = await auth.supabase
       .from("leave_balances")
       .select("id, used_days")
@@ -170,9 +171,35 @@ export async function reviewLeaveAsHR(
         .update({ used_days: balance.used_days + leave.total_days })
         .eq("id", balance.id);
     }
+
+    // 2. Buat record attendance "leave" untuk setiap hari kerja dalam rentang cuti
+    //    supaya tidak dihitung sebagai absen saat generate payroll
+    const attendanceRows: any[] = [];
+    let cur = new Date(leave.start_date);
+    const end = new Date(leave.end_date);
+    while (cur <= end) {
+      const day = cur.getDay();
+      if (day !== 0 && day !== 6) {
+        attendanceRows.push({
+          employee_id: leave.employee_id,
+          date: cur.toISOString().slice(0, 10),
+          status: "leave",
+          late_minutes: 0,
+        });
+      }
+      cur.setDate(cur.getDate() + 1);
+    }
+
+    if (attendanceRows.length > 0) {
+      // upsert supaya tidak error kalau kebetulan sudah ada record di tanggal itu
+      await auth.supabase
+        .from("attendance")
+        .upsert(attendanceRows, { onConflict: "employee_id,date" });
+    }
   }
 
   revalidatePath("/leave/approvals");
   revalidatePath("/leave");
+  revalidatePath("/attendance");
   return { success: true };
 }

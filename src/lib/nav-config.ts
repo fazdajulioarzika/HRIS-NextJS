@@ -9,6 +9,7 @@ import {
   Settings,
   HelpCircle,
   Search,
+  FileText,
 } from "lucide-react";
 
 import type { NavMainItem } from "@/components/nav-main";
@@ -46,6 +47,12 @@ export const navMainConfig: NavMainConfigItem[] = [
   },
   { title: "Payroll", url: "/payroll", icon: Wallet, roles: ["hr"] },
   { title: "Recruitment", url: "/recruitment", icon: Briefcase, roles: ["hr"] },
+  {
+    title: "Slip Gaji",
+    url: "/payroll/payslip",
+    icon: FileText,
+    roles: ["hr", "manager", "employee"],
+  },
 ];
 
 export const navSecondaryConfig: NavMainConfigItem[] = [
