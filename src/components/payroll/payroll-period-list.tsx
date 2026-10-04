@@ -2,8 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plus } from "lucide-react";
-
+import { Plus, Settings } from "lucide-react";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -100,7 +100,17 @@ export function PayrollPeriodList({ periods }: { periods: Period[] }) {
 
   return (
     <>
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <Button
+          variant="outline"
+          nativeButton={false}
+          render={
+            <Link href="/payroll/components">
+              <Settings className="size-4" />
+              Salary Components
+            </Link>
+          }
+        />
         <Button onClick={() => setOpen(true)}>
           <Plus className="size-4" />
           New Period

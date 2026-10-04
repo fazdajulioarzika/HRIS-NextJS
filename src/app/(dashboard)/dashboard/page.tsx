@@ -48,32 +48,37 @@ export default async function DashboardPage() {
 async function HRDashboard({ supabase }: { supabase: any }) {
   const today = getJakartaDateString();
 
-  const { count: totalEmployees } = await supabase
-    .from("employees")
-    .select("id", { count: "exact", head: true })
-    .in("employment_status", ["active", "permanent", "contract", "probation"]);
-
-  const { data: todayAttendance } = await supabase
-    .from("attendance")
-    .select("status")
-    .eq("date", today);
+  const [
+    { count: totalEmployees },
+    { data: todayAttendance },
+    { count: cutiPending },
+    { count: lemburPending },
+  ] = await Promise.all([
+    supabase
+      .from("employees")
+      .select("id", { count: "exact", head: true })
+      .in("employment_status", [
+        "active",
+        "permanent",
+        "contract",
+        "probation",
+      ]),
+    supabase.from("attendance").select("status").eq("date", today),
+    supabase
+      .from("leave_requests")
+      .select("id", { count: "exact", head: true })
+      .in("status", ["pending", "manager_approved"]),
+    supabase
+      .from("overtime_requests")
+      .select("id", { count: "exact", head: true })
+      .in("status", ["pending", "manager_approved"]),
+  ]);
 
   const hadirHariIni = (todayAttendance ?? []).length;
   const terlambat = (todayAttendance ?? []).filter(
     (a: any) => a.status === "late"
   ).length;
   const tidakHadir = (totalEmployees ?? 0) - hadirHariIni;
-
-  const { count: cutiPending } = await supabase
-    .from("leave_requests")
-    .select("id", { count: "exact", head: true })
-    .in("status", ["pending", "manager_approved"]);
-
-  const { count: lemburPending } = await supabase
-    .from("overtime_requests")
-    .select("id", { count: "exact", head: true })
-    .in("status", ["pending", "manager_approved"]);
-
   return (
     <div className="space-y-6">
       <div>
@@ -157,45 +162,45 @@ async function ManagerDashboard({
 }) {
   const today = getJakartaDateString();
 
-  const { count: teamSize } = await supabase
-    .from("employees")
-    .select("id", { count: "exact", head: true })
-    .eq("manager_id", managerId);
+  const [{ count: teamSize }, { data: team }] = await Promise.all([
+    supabase
+      .from("employees")
+      .select("id", { count: "exact", head: true })
+      .eq("manager_id", managerId),
+    supabase.from("employees").select("id").eq("manager_id", managerId),
+  ]);
 
-  const { data: team } = await supabase
-    .from("employees")
-    .select("id")
-    .eq("manager_id", managerId);
   const teamIds = (team ?? []).map((e: any) => e.id);
 
-  const { data: todayAttendance } = teamIds.length
-    ? await supabase
-        .from("attendance")
-        .select("status")
-        .eq("date", today)
-        .in("employee_id", teamIds)
-    : { data: [] };
+  // Query berikutnya BARU bisa jalan setelah teamIds didapat, tapi ketiganya sendiri independen satu sama lain
+  const [
+    { data: todayAttendance },
+    { count: cutiPending },
+    { count: lemburPending },
+  ] = teamIds.length
+    ? await Promise.all([
+        supabase
+          .from("attendance")
+          .select("status")
+          .eq("date", today)
+          .in("employee_id", teamIds),
+        supabase
+          .from("leave_requests")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "pending")
+          .in("employee_id", teamIds),
+        supabase
+          .from("overtime_requests")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "pending")
+          .in("employee_id", teamIds),
+      ])
+    : [{ data: [] }, { count: 0 }, { count: 0 }];
 
   const hadir = (todayAttendance ?? []).length;
   const terlambat = (todayAttendance ?? []).filter(
     (a: any) => a.status === "late"
   ).length;
-
-  const { count: cutiPending } = teamIds.length
-    ? await supabase
-        .from("leave_requests")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "pending")
-        .in("employee_id", teamIds)
-    : { count: 0 };
-
-  const { count: lemburPending } = teamIds.length
-    ? await supabase
-        .from("overtime_requests")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "pending")
-        .in("employee_id", teamIds)
-    : { count: 0 };
 
   return (
     <div className="space-y-6">
@@ -275,32 +280,36 @@ async function EmployeeDashboard({
   employeeId: string;
 }) {
   const today = getJakartaDateString();
-
-  const { data: todayAttendance } = await supabase
-    .from("attendance")
-    .select("check_in, check_out, status")
-    .eq("employee_id", employeeId)
-    .eq("date", today)
-    .single();
-
   const currentYear = new Date().getFullYear();
-  const { data: balances } = await supabase
-    .from("leave_balances")
-    .select("total_days, used_days, leave_types ( name )")
-    .eq("employee_id", employeeId)
-    .eq("year", currentYear);
 
-  const { count: myPendingLeave } = await supabase
-    .from("leave_requests")
-    .select("id", { count: "exact", head: true })
-    .eq("employee_id", employeeId)
-    .in("status", ["pending", "manager_approved"]);
-
-  const { count: myPendingOvertime } = await supabase
-    .from("overtime_requests")
-    .select("id", { count: "exact", head: true })
-    .eq("employee_id", employeeId)
-    .in("status", ["pending", "manager_approved"]);
+  const [
+    { data: todayAttendance },
+    { data: balances },
+    { count: myPendingLeave },
+    { count: myPendingOvertime },
+  ] = await Promise.all([
+    supabase
+      .from("attendance")
+      .select("check_in, check_out, status")
+      .eq("employee_id", employeeId)
+      .eq("date", today)
+      .single(),
+    supabase
+      .from("leave_balances")
+      .select("total_days, used_days, leave_types ( name )")
+      .eq("employee_id", employeeId)
+      .eq("year", currentYear),
+    supabase
+      .from("leave_requests")
+      .select("id", { count: "exact", head: true })
+      .eq("employee_id", employeeId)
+      .in("status", ["pending", "manager_approved"]),
+    supabase
+      .from("overtime_requests")
+      .select("id", { count: "exact", head: true })
+      .eq("employee_id", employeeId)
+      .in("status", ["pending", "manager_approved"]),
+  ]);
 
   const cutiTahunan = (balances ?? []).find((b: any) => {
     const name = Array.isArray(b.leave_types)

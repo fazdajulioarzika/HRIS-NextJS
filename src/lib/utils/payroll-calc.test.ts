@@ -10,8 +10,12 @@ describe("calculatePayroll", () => {
       absentCount: 0,
       workingDaysInMonth: 22,
       allowances: [
-        { name: "Tunjangan Transport", amount: 300_000 },
-        { name: "Tunjangan Makan", amount: 300_000 },
+        {
+          name: "Tunjangan Transport",
+          amount: 300_000,
+          calculationType: "fixed",
+        },
+        { name: "Tunjangan Makan", amount: 300_000, calculationType: "fixed" },
       ],
       deductions: [],
     });
@@ -82,7 +86,7 @@ describe("calculatePayroll", () => {
     expect(result.totalDeduction).toBe(136_365);
   });
 
-  it("menghitung potongan tidak hadir proporsional dari gaji harian", () => {
+  it("menghitung potongan tidak hadir proporsional dari gaji harian (percentage_of_daily_absent)", () => {
     const result = calculatePayroll({
       basicSalary: 12_000_000,
       approvedOvertimeHours: 0,
@@ -90,15 +94,22 @@ describe("calculatePayroll", () => {
       absentCount: 4,
       workingDaysInMonth: 22,
       allowances: [],
-      deductions: [],
+      deductions: [
+        {
+          name: "Potongan Tidak Hadir",
+          calculationType: "percentage_of_daily_absent",
+          amount: 100,
+        },
+      ],
     });
 
-    // dailyRate = 545.454,54..., absentCount = 4
-    // potongan = round(545.454,54 * 4) = 2.181.818
+    // dailyRate = 12.000.000 / 22 = 545.454,54...
+    // perDay = round(545.454,54 * 100 / 100) = 545.455
+    // total = 545.455 * 4 = 2.181.820
     const absentDeduction = result.deductionItems.find(
       (d) => d.name === "Potongan Tidak Hadir"
     );
-    expect(absentDeduction?.amount).toBe(2_181_818);
+    expect(absentDeduction?.amount).toBe(2_181_820);
   });
 
   it("tidak membuat deduction item kalau amount-nya 0 (misal lateCount = 0)", () => {
@@ -130,7 +141,9 @@ describe("calculatePayroll", () => {
       lateCount: 0,
       absentCount: 0,
       workingDaysInMonth: 22,
-      allowances: [{ name: "Tunjangan", amount: 1_000_000 }],
+      allowances: [
+        { name: "Tunjangan", amount: 1_000_000, calculationType: "fixed" },
+      ],
       deductions: [
         { name: "BPJS", calculationType: "percentage_of_basic", amount: 1 },
       ],

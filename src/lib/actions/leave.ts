@@ -39,7 +39,7 @@ export async function submitLeaveRequest(input: {
 
   const year = new Date(input.start_date).getFullYear();
 
-  const { data: balance } = await auth.supabase
+  const { data: balance, error: balanceError } = await auth.supabase
     .from("leave_balances")
     .select("total_days, used_days")
     .eq("employee_id", auth.employeeId)
@@ -47,13 +47,15 @@ export async function submitLeaveRequest(input: {
     .eq("year", year)
     .single();
 
-  if (balance) {
-    const remaining = balance.total_days - balance.used_days;
-    if (totalDays > remaining) {
-      return {
-        error: `Sisa cuti tidak cukup. Sisa: ${remaining} hari, diajukan: ${totalDays} hari`,
-      };
-    }
+  if (balanceError || !balance) {
+    return { error: "Saldo cuti untuk jenis ini belum tersedia. Hubungi HR." };
+  }
+
+  const remaining = balance.total_days - balance.used_days;
+  if (totalDays > remaining) {
+    return {
+      error: `Sisa cuti tidak cukup. Sisa: ${remaining} hari, diajukan: ${totalDays} hari`,
+    };
   }
 
   const { error } = await auth.supabase.from("leave_requests").insert({

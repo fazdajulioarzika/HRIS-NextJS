@@ -4,7 +4,7 @@ export interface CalcInput {
   lateCount: number;
   absentCount: number;
   workingDaysInMonth: number;
-  allowances: { name: string; amount: number }[];
+  allowances: { name: string; calculationType: string; amount: number }[];
   deductions: { name: string; calculationType: string; amount: number }[];
 }
 
@@ -17,46 +17,45 @@ export function calculatePayroll(input: CalcInput) {
     hourlyRate * OVERTIME_MULTIPLIER * input.approvedOvertimeHours
   );
 
-  const totalAllowance = input.allowances.reduce((sum, a) => sum + a.amount, 0);
-  const grossSalary = input.basicSalary + totalAllowance + overtimePay;
-
   const dailyRate =
     input.workingDaysInMonth > 0
       ? input.basicSalary / input.workingDaysInMonth
       : 0;
 
-  // Komponen deduction dari salary_components (BPJS, PPh21, Potongan Telat, dll)
-  const deductionItems = input.deductions.map((d) => {
-    let amount = 0;
+  const allowanceItems = input.allowances
+    .map((a) => {
+      const amount =
+        a.calculationType === "percentage_of_basic"
+          ? Math.round((input.basicSalary * a.amount) / 100)
+          : a.amount;
+      return { name: a.name, amount };
+    })
+    .filter((a) => a.amount > 0);
 
-    if (d.calculationType === "percentage_of_basic") {
-      amount = Math.round((input.basicSalary * d.amount) / 100);
-    } else if (d.calculationType === "percentage_of_daily") {
-      // Rate % dari gaji harian, dikali jumlah kejadian telat
-      const perOccurrence = Math.round((dailyRate * d.amount) / 100);
-      amount = perOccurrence * input.lateCount;
-    } else {
-      amount = d.amount; // fixed
-    }
+  const totalAllowance = allowanceItems.reduce((sum, a) => sum + a.amount, 0);
+  const grossSalary = input.basicSalary + totalAllowance + overtimePay;
 
-    return { name: d.name, amount };
-  });
+  const deductionItems = input.deductions
+    .map((d) => {
+      let amount = 0;
 
-  // Potongan tidak hadir — proporsional dari gaji harian, dihitung terpisah (bukan dari salary_components)
-  if (input.absentCount > 0 && dailyRate > 0) {
-    deductionItems.push({
-      name: "Potongan Tidak Hadir",
-      amount: Math.round(dailyRate * input.absentCount),
-    });
-  }
+      if (d.calculationType === "percentage_of_basic") {
+        amount = Math.round((input.basicSalary * d.amount) / 100);
+      } else if (d.calculationType === "percentage_of_daily") {
+        const perOccurrence = Math.round((dailyRate * d.amount) / 100);
+        amount = perOccurrence * input.lateCount;
+      } else if (d.calculationType === "percentage_of_daily_absent") {
+        const perDay = Math.round((dailyRate * d.amount) / 100);
+        amount = perDay * input.absentCount;
+      } else {
+        amount = d.amount;
+      }
 
-  // Hilangkan item dengan amount 0 (misal "Potongan Telat" tapi lateCount = 0)
-  const finalDeductionItems = deductionItems.filter((d) => d.amount > 0);
+      return { name: d.name, amount };
+    })
+    .filter((d) => d.amount > 0);
 
-  const totalDeduction = finalDeductionItems.reduce(
-    (sum, d) => sum + d.amount,
-    0
-  );
+  const totalDeduction = deductionItems.reduce((sum, d) => sum + d.amount, 0);
   const netSalary = grossSalary - totalDeduction;
 
   return {
@@ -64,8 +63,9 @@ export function calculatePayroll(input: CalcInput) {
     dailyRate,
     overtimePay,
     totalAllowance,
+    allowanceItems,
     grossSalary,
-    deductionItems: finalDeductionItems,
+    deductionItems,
     totalDeduction,
     netSalary,
   };

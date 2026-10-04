@@ -26,11 +26,22 @@ export function NavMain({ items }: { items: NavMainItem[] }) {
       <SidebarGroupContent className="flex flex-col gap-2">
         <SidebarMenu>
           {items.map((item) => {
-            // Dashboard harus exact match, selain itu boleh nested (misal /employees/123)
+            const isExactMatch = pathname === item.url;
+            const isNestedMatch = pathname.startsWith(item.url + "/");
+
+            // Cari item lain yang path-nya lebih spesifik (lebih panjang) dan juga match.
+            // Kalau ada, item ini (yang lebih umum) tidak dianggap aktif.
+            const hasMoreSpecificMatch = items.some(
+              (other) =>
+                other.url !== item.url &&
+                other.url.startsWith(item.url + "/") &&
+                (pathname === other.url || pathname.startsWith(other.url + "/"))
+            );
+
             const isActive =
               item.url === "/dashboard"
-                ? pathname === item.url
-                : pathname === item.url || pathname.startsWith(item.url + "/");
+                ? isExactMatch
+                : (isExactMatch || isNestedMatch) && !hasMoreSpecificMatch;
 
             return (
               <SidebarMenuItem key={item.title}>

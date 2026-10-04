@@ -81,11 +81,16 @@ export async function generatePayroll(periodId: string) {
     .select("id, basic_salary")
     .in("employment_status", ["active", "permanent", "contract", "probation"]);
 
+  if (!employees || employees.length === 0) {
+    return { error: "Tidak ada karyawan aktif untuk digenerate" };
+  }
+
+  const employeeIds = employees.map((e) => e.id);
+
   const { data: components } = await auth.supabase
     .from("salary_components")
     .select("name, type, calculation_type, default_amount")
-    .eq("is_active", true)
-    .neq("name", "Potongan Tidak Hadir");
+    .eq("is_active", true);
 
   const allowanceComponents = (components ?? []).filter(
     (c) => c.type === "allowance"
@@ -108,39 +113,61 @@ export async function generatePayroll(periodId: string) {
     if (day !== 0 && day !== 6) workingDaysInMonth++;
   }
 
-  let created = 0;
+  const { data: overtimeSummary } = await auth.supabase.rpc(
+    "get_monthly_overtime_summary",
+    {
+      emp_ids: employeeIds,
+      start_date: periodStart,
+      end_date: periodEnd,
+    }
+  );
 
-  for (const emp of employees ?? []) {
-    const { data: overtimeRequests } = await auth.supabase
-      .from("overtime_requests")
-      .select("total_hours")
-      .eq("employee_id", emp.id)
-      .eq("status", "approved")
-      .gte("date", periodStart)
-      .lte("date", periodEnd);
+  const overtimeByEmployee = new Map<string, number>();
+  for (const o of overtimeSummary ?? []) {
+    overtimeByEmployee.set(o.employee_id, Number(o.total_hours));
+  }
 
-    const approvedOvertimeHours = (overtimeRequests ?? []).reduce(
-      (sum, o) => sum + Number(o.total_hours),
-      0
+  const { data: attendanceSummary } = await auth.supabase.rpc(
+    "get_monthly_attendance_summary",
+    {
+      emp_ids: employeeIds,
+      start_date: periodStart,
+      end_date: periodEnd,
+    }
+  );
+
+  const attendanceByEmployee = new Map<
+    string,
+    { lateCount: number; totalRecords: number }
+  >();
+  for (const a of attendanceSummary ?? []) {
+    attendanceByEmployee.set(a.employee_id, {
+      lateCount: Number(a.late_count),
+      totalRecords: Number(a.present_count),
+    });
+  }
+
+  // ── Hitung payroll per karyawan (murni di memori, tidak ada query database di sini) ──
+  const payrollsToInsert: any[] = [];
+  const calcResultsByEmployee = new Map<
+    string,
+    ReturnType<typeof calculatePayroll>
+  >();
+
+  for (const emp of employees) {
+    const approvedOvertimeHours = overtimeByEmployee.get(emp.id) ?? 0;
+    const attendanceStats = attendanceByEmployee.get(emp.id) ?? {
+      lateCount: 0,
+      totalRecords: 0,
+    };
+    const absentCount = Math.max(
+      0,
+      workingDaysInMonth - attendanceStats.totalRecords
     );
-
-    const { data: attendanceRecords } = await auth.supabase
-      .from("attendance")
-      .select("status")
-      .eq("employee_id", emp.id)
-      .gte("date", periodStart)
-      .lte("date", periodEnd);
-
-    const lateCount = (attendanceRecords ?? []).filter(
-      (a) => a.status === "late"
-    ).length;
-
-    // Hari absen = hari kerja - hari yang punya record attendance (present/late/leave/dll)
-    const daysWithRecord = (attendanceRecords ?? []).length;
-    const absentCount = Math.max(0, workingDaysInMonth - daysWithRecord);
 
     const allowances = allowanceComponents.map((c) => ({
       name: c.name,
+      calculationType: c.calculation_type,
       amount: c.default_amount,
     }));
     const deductions = deductionComponents.map((c) => ({
@@ -152,33 +179,46 @@ export async function generatePayroll(periodId: string) {
     const calc = calculatePayroll({
       basicSalary: Number(emp.basic_salary),
       approvedOvertimeHours,
-      lateCount,
+      lateCount: attendanceStats.lateCount,
       absentCount,
       workingDaysInMonth,
       allowances,
       deductions,
     });
 
-    const { data: payroll, error: payrollError } = await auth.supabase
-      .from("payrolls")
-      .insert({
-        payroll_period_id: periodId,
-        employee_id: emp.id,
-        basic_salary: emp.basic_salary,
-        total_allowance: calc.totalAllowance,
-        total_overtime: calc.overtimePay,
-        total_bonus: 0,
-        gross_salary: calc.grossSalary,
-        total_deduction: calc.totalDeduction,
-        net_salary: calc.netSalary,
-      })
-      .select("id")
-      .single();
+    calcResultsByEmployee.set(emp.id, calc);
 
-    if (payrollError || !payroll) continue;
+    payrollsToInsert.push({
+      payroll_period_id: periodId,
+      employee_id: emp.id,
+      basic_salary: emp.basic_salary,
+      total_allowance: calc.totalAllowance,
+      total_overtime: calc.overtimePay,
+      total_bonus: 0,
+      gross_salary: calc.grossSalary,
+      total_deduction: calc.totalDeduction,
+      net_salary: calc.netSalary,
+    });
+  }
 
-    const items = [
-      ...allowances.map((a) => ({
+  // ── Insert SEMUA payroll sekaligus (1 query, bukan 108) ──
+  const { data: insertedPayrolls, error: insertError } = await auth.supabase
+    .from("payrolls")
+    .insert(payrollsToInsert)
+    .select("id, employee_id");
+
+  if (insertError || !insertedPayrolls) {
+    return { error: insertError?.message ?? "Gagal insert payroll" };
+  }
+
+  // ── Insert SEMUA payroll_items sekaligus (1 query, bukan 108) ──
+  const allItems: any[] = [];
+  for (const payroll of insertedPayrolls) {
+    const calc = calcResultsByEmployee.get(payroll.employee_id);
+    if (!calc) continue;
+
+    allItems.push(
+      ...calc.allowanceItems.map((a) => ({
         payroll_id: payroll.id,
         component_name: a.name,
         type: "allowance",
@@ -199,14 +239,12 @@ export async function generatePayroll(periodId: string) {
         component_name: d.name,
         type: "deduction",
         amount: d.amount,
-      })),
-    ];
+      }))
+    );
+  }
 
-    if (items.length > 0) {
-      await auth.supabase.from("payroll_items").insert(items);
-    }
-
-    created++;
+  if (allItems.length > 0) {
+    await auth.supabase.from("payroll_items").insert(allItems);
   }
 
   await auth.supabase
@@ -216,7 +254,7 @@ export async function generatePayroll(periodId: string) {
 
   revalidatePath(`/payroll/${periodId}`);
   revalidatePath("/payroll");
-  return { success: true, count: created };
+  return { success: true, count: insertedPayrolls.length };
 }
 
 export async function updatePeriodStatus(
