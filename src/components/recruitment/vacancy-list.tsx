@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Plus,
   Search,
+  Sheet,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -113,11 +114,23 @@ export function VacancyList({
             className="pl-8"
           />
         </div>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            nativeButton={false}
+            render={
+              <Link href="/recruitment/email-templates">
+                <Sheet className="size-4" />
+                Email Templates
+              </Link>
+            }
+          />
 
-        <Button onClick={() => setFormOpen(true)}>
-          <Plus className="size-4" />
-          New Vacancy
-        </Button>
+          <Button onClick={() => setFormOpen(true)}>
+            <Plus className="size-4" />
+            New Vacancy
+          </Button>
+        </div>
       </div>
 
       <div className="rounded-md border">

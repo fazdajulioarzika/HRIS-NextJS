@@ -29,6 +29,7 @@ import {
 } from "@/lib/actions/recruitment";
 import { candidateStatusValues } from "@/lib/validations/recruitment";
 import { ConvertToEmployeeDialog } from "./convert-to-employee-dialog";
+import { InterviewDetailsDialog } from "./interview-details-dialog";
 
 const candidateStatusLabel: Record<string, string> = {
   applied: "Applied",
@@ -76,6 +77,10 @@ export function VacancyDetail({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [convertTarget, setConvertTarget] = useState<Candidate | null>(null);
+  const [interviewDialogTarget, setInterviewDialogTarget] = useState<{
+    candidateId: string;
+    status: string;
+  } | null>(null);
 
   function handleVacancyStatusChange(status: string) {
     startTransition(async () => {
@@ -85,6 +90,10 @@ export function VacancyDetail({
   }
 
   function handleCandidateStatusChange(candidateId: string, status: string) {
+    if (status === "interview" || status === "technical_test") {
+      setInterviewDialogTarget({ candidateId, status });
+      return;
+    }
     startTransition(async () => {
       await updateCandidateStatus(candidateId, status);
       router.refresh();
@@ -205,6 +214,14 @@ export function VacancyDetail({
             )}
           </TableBody>
         </Table>
+        {interviewDialogTarget && (
+          <InterviewDetailsDialog
+            candidateId={interviewDialogTarget.candidateId}
+            status={interviewDialogTarget.status}
+            open={!!interviewDialogTarget}
+            onOpenChange={(open) => !open && setInterviewDialogTarget(null)}
+          />
+        )}
       </div>
 
       {convertTarget && (

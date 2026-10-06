@@ -8,6 +8,7 @@ import {
 } from "@/lib/validations/recruitment";
 import { sendEmail } from "@/lib/email/send-email";
 import { buildCandidateStatusEmail } from "@/lib/email/candidate-status-templates";
+import { renderTemplate } from "@/lib/email/render-template";
 
 async function requireHR() {
   const supabase = await createClient();
@@ -68,7 +69,8 @@ export async function updateVacancyStatus(
 
 export async function updateCandidateStatus(
   candidateId: string,
-  status: string
+  status: string,
+  interviewDetails?: { date?: string; time?: string; link?: string }
 ) {
   const auth = await requireHR();
   if (!auth.ok) return { error: auth.error };
@@ -82,14 +84,17 @@ export async function updateCandidateStatus(
   try {
     const { data: candidate } = await auth.supabase
       .from("candidates")
-      .select(
-        `full_name, email,
-         job_vacancies ( positions ( name ) )`
-      )
+      .select(`full_name, email, job_vacancies ( positions ( name ) )`)
       .eq("id", candidateId)
       .single();
 
-    if (candidate) {
+    const { data: template } = await auth.supabase
+      .from("email_templates")
+      .select("subject, body")
+      .eq("status_key", status)
+      .single();
+
+    if (candidate && template) {
       const positionRel = Array.isArray(candidate.job_vacancies)
         ? candidate.job_vacancies[0]
         : candidate.job_vacancies;
@@ -98,18 +103,22 @@ export async function updateCandidateStatus(
         : positionRel?.positions;
       const positionName = positionNameRel?.name ?? "-";
 
-      const emailContent = buildCandidateStatusEmail(
-        candidate.full_name,
-        positionName,
-        status
-      );
-      if (emailContent) {
-        await sendEmail({
-          to: candidate.email,
-          subject: emailContent.subject,
-          html: emailContent.html,
-        });
-      }
+      const variables = {
+        candidate_name: candidate.full_name,
+        position: positionName,
+        interview_date: interviewDetails?.date ?? "",
+        interview_time: interviewDetails?.time ?? "",
+        interview_link: interviewDetails?.link ?? "",
+      };
+
+      const subject = renderTemplate(template.subject, variables);
+      const body = renderTemplate(template.body, variables);
+
+      await sendEmail({
+        to: candidate.email,
+        subject,
+        html: `<div style="font-family: sans-serif; max-width: 500px; margin: 0 auto;">${body}<hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" /><p style="color: #999; font-size: 12px;">Email ini dikirim otomatis, mohon tidak membalas.</p></div>`,
+      });
     }
   } catch (emailError) {
     console.error("Gagal mengirim notifikasi email kandidat:", emailError);
