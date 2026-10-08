@@ -39,11 +39,14 @@ export async function submitApplication(
       .eq("id", vacancyId)
       .single();
 
-    const { data: template } = await supabase
+    const { data: template, error: templateError } = await supabase
       .from("email_templates")
       .select("subject, body")
       .eq("status_key", "applied")
       .single();
+
+    console.log("TEMPLATE:", template);
+    console.log("TEMPLATE ERROR:", templateError);
 
     if (template) {
       const positionRel = Array.isArray(vacancy?.positions)
