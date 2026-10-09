@@ -318,7 +318,7 @@ This project is licensed under the [MIT License](LICENSE).
 
 <div align="center">
 
-**Built by [YOUR NAME](https://github.com/YOUR_USERNAME)**
+**Built by [FAZDA JULIO ARZIKA](https://github.com/fazdajulioarzika)**
 
 ⭐ If you find this project useful, consider giving it a star!
 

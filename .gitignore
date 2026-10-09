@@ -35,9 +35,9 @@ yarn-error.log*
 
 # vercel
 .vercel
-AGENTS.md
-CLAUDE.md
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+# Dev-only routes (jangan di-push)
+src/app/api/dev-invite-link/
